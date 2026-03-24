@@ -306,7 +306,7 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     header_fill = PatternFill(fill_type='solid', fgColor='F3F4F6')
 
     ws.merge_cells('A1:F1')
-    ws['A1'] = '钢材对账单'
+    ws['A1'] = '线材对账单'
     ws['A1'].font = title_font
     ws['A1'].alignment = center
 
@@ -351,8 +351,15 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     ws[f'A{row_no}'] = '已收款金额：'
     ws[f'B{row_no}'] = format_money(statement['received_amount_total'])
     row_no += 1
+    outstanding_amount = (statement['total_amount'] - statement['received_amount_total']).quantize(
+        Decimal('0.01'),
+        rounding=ROUND_HALF_UP,
+    )
     ws[f'A{row_no}'] = '未收款金额：'
-    ws[f'B{row_no}'] = format_money(statement['unreceived_amount_total'])
+    ws[f'B{row_no}'] = format_money(outstanding_amount)
+
+    ws[f'F{row_no + 2}'] = '（盖章处）'
+    ws[f'F{row_no + 2}'].alignment = Alignment(horizontal='right', vertical='center')
 
     widths = {'A': 10, 'B': 16, 'C': 14, 'D': 14, 'E': 16, 'F': 22}
     for col, width in widths.items():
