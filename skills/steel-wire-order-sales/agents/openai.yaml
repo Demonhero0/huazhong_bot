@@ -1,0 +1,4 @@
+interface:
+  display_name: "Steel Wire Order Sales"
+  short_description: "Help with steel wire order and sales workflows"
+  default_prompt: "Use $steel-wire-order-sales to handle steel wire 订货 or 销货 in this repository."

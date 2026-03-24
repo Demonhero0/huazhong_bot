@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local editor / OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+*.xls
+*.xlsx
+
+# Environment / local overrides
+.env
+.env.*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
