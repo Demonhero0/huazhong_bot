@@ -15,6 +15,7 @@ Read [references/workflow.md](references/workflow.md) when you need the field ma
 
 - If the user wants to create or append a supplier order, use the `订货` workflow with `order_entry.py`.
 - If the user wants to allocate trucks from an existing supplier contract to a customer, use the `销货` workflow with `sales_entry.py`.
+- If the user wants to backfill or modify fields in an existing customer sales contract, use `update_sales_contract.py`.
 - If the user wants to fill actual truck execution details into both workbooks, use the `送货` workflow with `delivery_entry.py`.
 - If the user wants to register customer receipts into the sales workbook, use the `收款` workflow with `receipt_entry.py`.
 - If the user wants to generate a customer statement, use the `出具对账单` workflow with `statement_issue.py`. This workflow exports Excel only.
@@ -23,7 +24,7 @@ Read [references/workflow.md](references/workflow.md) when you need the field ma
 ## Environment
 
 - Run commands from the repository root.
-- Prefer `./.venv/bin/python` instead of `python3`.
+- Prefer `./.venv/bin/python src/<script>.py` instead of `python3`.
 - If dependencies are missing, install with `./.venv/bin/python -m pip install -r requirements.txt`.
 - Prefer the JSON read tools before any write that depends on locating contracts or pending rows.
 
@@ -31,11 +32,12 @@ Read [references/workflow.md](references/workflow.md) when you need the field ma
 
 Use these tools first when the user needs contract discovery or row-level targeting:
 
-- `./.venv/bin/python list_order_contracts.py -s "<supplier>"`
-- `./.venv/bin/python list_sales_contracts.py -c "<customer>"`
-- `./.venv/bin/python list_receivable_contracts.py -c "<customer>" [--settled no|yes|all]`
-- `./.venv/bin/python find_pending_order_rows.py -s "<supplier>" -n <order_contract>`
-- `./.venv/bin/python find_pending_sales_rows.py -c "<customer>" -n <sales_contract>`
+- `./.venv/bin/python src/list_order_contracts.py -s "<supplier>"`
+- `./.venv/bin/python src/list_sales_contracts.py -c "<customer>"`
+- `./.venv/bin/python src/list_receivable_contracts.py -c "<customer>" [--settled no|yes|all]`
+- `./.venv/bin/python src/update_sales_contract.py -c "<customer>" -n <contract_no> --set <field=value>`
+- `./.venv/bin/python src/find_pending_order_rows.py -s "<supplier>" -n <order_contract>`
+- `./.venv/bin/python src/find_pending_sales_rows.py -c "<customer>" -n <sales_contract>`
 
 Rules:
 
@@ -59,25 +61,25 @@ Required fields:
 Command template:
 
 ```bash
-./.venv/bin/python order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>"
+./.venv/bin/python src/order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>"
 ```
 
 With explicit order date:
 
 ```bash
-./.venv/bin/python order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" --order-date "<YYYY.MM.DD>"
+./.venv/bin/python src/order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" --order-date "<YYYY.MM.DD>"
 ```
 
 With payment amount only:
 
 ```bash
-./.venv/bin/python order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" -m <payment_amount>
+./.venv/bin/python src/order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" -m <payment_amount>
 ```
 
 With explicit payment date and amount:
 
 ```bash
-./.venv/bin/python order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" -m <payment_amount> -d "<YYYY.MM.DD>"
+./.venv/bin/python src/order_entry.py -s "<supplier>" -p <price> -n <trucks> -b "<brand>" -e "<spec>" -t "<transport>" -m <payment_amount> -d "<YYYY.MM.DD>"
 ```
 
 Rules:
@@ -104,25 +106,25 @@ Required fields for actual execution:
 If `contract_no` is unknown, first list available contracts:
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "<supplier>"
+./.venv/bin/python src/list_order_contracts.py -s "<supplier>"
 ```
 
 Execution template:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks>
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks>
 ```
 
 With explicit sales date:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --sales-date "<YYYY.MM.DD>"
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --sales-date "<YYYY.MM.DD>"
 ```
 
 With optional benchmark and price diff:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --benchmark "<benchmark>" --price-diff "<price_diff>"
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --benchmark "<benchmark>" --price-diff "<price_diff>"
 ```
 
 Rules:
@@ -136,6 +138,19 @@ Rules:
 - Sales workbook contract numbers are generated from `sales_date` in `YYYYMMDD01` format.
 - `trucks` cannot exceed the number of empty customer rows available under that supplier contract.
 - `sales_entry.py` writes to both the supplier workbook and the customer workbook. Treat it as a two-file update.
+
+Backfill / modify existing sales-contract fields:
+
+```bash
+./.venv/bin/python src/update_sales_contract.py -c "<customer>" -n <contract_no> --set benchmark="<benchmark>" --set price_diff="<price_diff>"
+```
+
+Rules:
+
+- Use this after a sales contract already exists and you need to backfill or adjust customer-workbook fields.
+- This script updates all rows under the matching customer sales contract.
+- Do not rerun `sales_entry.py` just to backfill `benchmark` or `price_diff` after customer rows are already assigned.
+- Supported `--set` fields currently include: `sales_date`, `brand`, `spec`, `benchmark`, `price_diff`, `delivery_date`, `fleet`, `freight`, `freight_tax`, `supplier`, `order_price`, `delivery_mode`, `dock`, `truck_no`, `factory_weight`, `received_weight`, `sell_price`, `receipt_date`, `received_amount`.
 
 ## 送货 Workflow
 
@@ -156,13 +171,13 @@ Required fields for actual execution:
 Execution template:
 
 ```bash
-./.venv/bin/python delivery_entry.py -s "<supplier>" -o <order_contract> -c "<customer>" -n <sales_contract> --pickup-date "<YYYY.MM.DD>" --truck-no "<truck_no>" --factory-weight <factory_weight> --received-weight <received_weight> --fleet "<fleet>" --freight "<X元/吨|X元>" --freight-tax "<含税|不含税>"
+./.venv/bin/python src/delivery_entry.py -s "<supplier>" -o <order_contract> -c "<customer>" -n <sales_contract> --pickup-date "<YYYY.MM.DD>" --truck-no "<truck_no>" --factory-weight <factory_weight> --received-weight <received_weight> --fleet "<fleet>" --freight "<X元/吨|X元>" --freight-tax "<含税|不含税>"
 ```
 
 With explicit dock and delivery date:
 
 ```bash
-./.venv/bin/python delivery_entry.py -s "<supplier>" -o <order_contract> -c "<customer>" -n <sales_contract> --pickup-date "<YYYY.MM.DD>" --delivery-date "<YYYY.MM.DD>" --truck-no "<truck_no>" --factory-weight <factory_weight> --received-weight <received_weight> --fleet "<fleet>" --freight "<X元/吨|X元>" --freight-tax "<含税|不含税>" --dock "<dock>"
+./.venv/bin/python src/delivery_entry.py -s "<supplier>" -o <order_contract> -c "<customer>" -n <sales_contract> --pickup-date "<YYYY.MM.DD>" --delivery-date "<YYYY.MM.DD>" --truck-no "<truck_no>" --factory-weight <factory_weight> --received-weight <received_weight> --fleet "<fleet>" --freight "<X元/吨|X元>" --freight-tax "<含税|不含税>" --dock "<dock>"
 ```
 
 Rules:
@@ -195,7 +210,7 @@ Paid status rule:
 Command template:
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "<customer_full_name>" [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--contract "<contract_no>"] [--paid yes|no|all] [--statement-date "<YYYY.MM.DD>"]
+./.venv/bin/python src/statement_issue.py --customer "<customer_full_name>" [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--contract "<contract_no>"] [--paid yes|no|all] [--statement-date "<YYYY.MM.DD>"]
 ```
 
 Rules:
@@ -217,19 +232,19 @@ Rules:
 Read-first template:
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "<customer>" [--contract "<contract_no>"] [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--settled no|yes|all]
+./.venv/bin/python src/list_receivable_contracts.py -c "<customer>" [--contract "<contract_no>"] [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--settled no|yes|all]
 ```
 
 Execution template:
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "<customer>" -n <contract_no> -a <amount>
+./.venv/bin/python src/receipt_entry.py -c "<customer>" -n <contract_no> -a <amount>
 ```
 
 With explicit receipt date:
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "<customer>" -n <contract_no> -a <amount> --receipt-date "<YYYY.MM.DD>"
+./.venv/bin/python src/receipt_entry.py -c "<customer>" -n <contract_no> -a <amount> --receipt-date "<YYYY.MM.DD>"
 ```
 
 Rules:

@@ -6,10 +6,12 @@ import os
 import re
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
+from pathlib import Path
 
 
-ORDER_FILE = os.path.join(os.path.dirname(__file__), '线材供应商提货明细龙虾版.xlsx')
-SALES_FILE = os.path.join(os.path.dirname(__file__), '线材客户送货明细龙虾版.xlsx')
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ORDER_FILE = str(REPO_ROOT / '线材供应商提货明细龙虾版.xlsx')
+SALES_FILE = str(REPO_ROOT / '线材客户送货明细龙虾版.xlsx')
 
 
 def is_blank(value):

@@ -17,8 +17,9 @@ Example:
 from openpyxl import load_workbook
 from datetime import datetime
 import sys
-import os
 import argparse
+
+from workbook_query_utils import ORDER_FILE
 
 
 def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method, order_date=None, customers=None, payment_date=None, payment_amount=None):
@@ -41,11 +42,8 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
     if customers is None:
         customers = []
     
-    # File path
-    file_path = os.path.join(os.path.dirname(__file__), '线材供应商提货明细龙虾版.xlsx')
-    
     # Open file
-    wb = load_workbook(file_path)
+    wb = load_workbook(ORDER_FILE)
     
     # Get worksheet
     if supplier not in wb.sheetnames:
@@ -140,20 +138,14 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
             else:
                 formula = f'=O{row-1}+L{row}-N{row}'
             ws.cell(row=row, column=15, value=formula)  # Column O: Balance
-        
-        if payment_amount is not None:
-            payment_row = start_row + num_trucks
-            formula = f'=O{payment_row-1}+L{payment_row}-N{payment_row}'
-            ws.cell(row=payment_row, column=15, value=formula)
-            print(f'  Balance formula filled to rows {start_row}-{payment_row}')
-        else:
-            print(f'  Balance formula filled to rows {start_row}-{start_row+num_trucks-1}')
+
+        print(f'  Balance formula filled to rows {start_row}-{start_row+num_trucks-1}')
     else:
         print(f'  Warning: Row {prev_row} Column O has no formula, skipping fill')
     
     # Save file
-    wb.save(file_path)
-    print(f'\n✅ Entry completed! File saved: {file_path}')
+    wb.save(ORDER_FILE)
+    print(f'\n✅ Entry completed! File saved: {ORDER_FILE}')
     return True
 
 

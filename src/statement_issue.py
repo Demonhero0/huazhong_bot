@@ -18,12 +18,13 @@ from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.worksheet.page import PageMargins
 
 from workbook_query_utils import SALES_FILE, resolve_sales_sheet_name
 
 
 SELLER_NAME = '东莞市华众供应链管理有限公司'
-OUTPUT_ROOT = Path(__file__).resolve().parent / 'statements'
+OUTPUT_ROOT = Path(__file__).resolve().parent.parent / 'statements'
 DATE_FMT = '%Y.%m.%d'
 
 
@@ -50,6 +51,14 @@ def money(value: Any) -> Decimal:
 
 def format_money(value: Decimal) -> str:
     return f'{value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP):f}'
+
+
+def format_cn_date(date_text: str | None) -> str:
+    normalized = normalize_date_text(date_text)
+    if not normalized:
+        return ''
+    dt = parse_date(normalized)
+    return dt.strftime('%Y年%m月%d日')
 
 
 def value_is_blank(value: Any) -> bool:
@@ -298,72 +307,169 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     wb = Workbook()
     ws = wb.active
     ws.title = '对账单'
-    thin = Side(style='thin', color='999999')
+    thin = Side(style='thin', color='000000')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal='center', vertical='center')
     left = Alignment(horizontal='left', vertical='center')
-    title_font = Font(size=16, bold=True)
-    header_fill = PatternFill(fill_type='solid', fgColor='F3F4F6')
+    title_font = Font(size=18, bold=True)
+    subtitle_font = Font(size=16, bold=True)
+    text_font = Font(size=10)
+    note_font = Font(size=10, color='FF0000', bold=True)
 
-    ws.merge_cells('A1:F1')
-    ws['A1'] = '线材对账单'
-    ws['A1'].font = title_font
-    ws['A1'].alignment = center
-
-    ws['A3'] = '对账日期：'
-    ws['B3'] = statement['statement_date']
-    ws['A4'] = '合同编号：'
-    ws['B4'] = statement['contract_display']
-    ws['A5'] = '合同签订日期：'
-    ws['B5'] = statement['contract_signing_date']
-    ws['A7'] = '供方（甲方）：'
-    ws['B7'] = statement['seller_name']
-    ws['A8'] = '需方（乙方）：'
-    ws['B8'] = statement['buyer_name']
-
-    headers = ['序号', '车号', '实收吨数', '单价（元）', '金额（元）', '备注']
-    start_row = 10
-    for idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=start_row, column=idx, value=header)
-        cell.border = border
-        cell.alignment = center
-        cell.fill = header_fill
-
-    row_no = start_row + 1
-    for row in statement['rows']:
-        values = [row['index'], row['truck_no'], row['received_weight'], row['unit_price'], row['amount'], row['remark']]
-        for col, value in enumerate(values, 1):
-            cell = ws.cell(row=row_no, column=col, value=value)
-            cell.border = border
-            cell.alignment = center if col != 6 else left
-        row_no += 1
-
-    totals = ['合计', f'{statement["truck_count"]}车', format_money(statement['total_received_weight']), '', format_money(statement['total_amount']), '']
-    for col, value in enumerate(totals, 1):
-        cell = ws.cell(row=row_no, column=col, value=value)
-        cell.border = border
-        cell.alignment = center
-
-    row_no += 2
-    ws[f'A{row_no}'] = '金额合计（大写）：'
-    ws[f'B{row_no}'] = f'人民币{statement["total_amount_uppercase"]}'
-    row_no += 1
-    ws[f'A{row_no}'] = '已收款金额：'
-    ws[f'B{row_no}'] = format_money(statement['received_amount_total'])
-    row_no += 1
     outstanding_amount = (statement['total_amount'] - statement['received_amount_total']).quantize(
         Decimal('0.01'),
         rounding=ROUND_HALF_UP,
     )
-    ws[f'A{row_no}'] = '未收款金额：'
-    ws[f'B{row_no}'] = format_money(outstanding_amount)
+    opening_outstanding = Decimal('0.00')
 
-    ws[f'F{row_no + 2}'] = '（盖章处）'
-    ws[f'F{row_no + 2}'].alignment = Alignment(horizontal='right', vertical='center')
+    ws.merge_cells('A1:H1')
+    ws['A1'] = statement['seller_name']
+    ws['A1'].font = title_font
+    ws['A1'].alignment = center
 
-    widths = {'A': 10, 'B': 16, 'C': 14, 'D': 14, 'E': 16, 'F': 22}
+    ws.merge_cells('A2:H2')
+    ws['A2'] = '线材对账单'
+    ws['A2'].font = subtitle_font
+    ws['A2'].alignment = center
+
+    ws.merge_cells('A3:H3')
+    ws['A3'] = f'购货单位：{statement["buyer_name"]}'
+    ws['A3'].alignment = left
+    ws['A3'].font = text_font
+
+    ws.merge_cells('A4:A5')
+    ws.merge_cells('B4:B5')
+    ws.merge_cells('C4:C5')
+    ws.merge_cells('D4:D5')
+    ws.merge_cells('E4:E5')
+    ws.merge_cells('F4:F5')
+    ws.merge_cells('G4:G5')
+    ws.merge_cells('H4:H5')
+    ws['A4'] = '序号'
+    ws['B4'] = '日期'
+    ws['C4'] = '名称规格'
+    ws['D4'] = '重量\n(吨)'
+    ws['E4'] = '单价\n(元/吨)'
+    ws['F4'] = '货款金额\n(元)'
+    ws['G4'] = '已收货款金额'
+    ws['H4'] = '未收货款金额\n(元)'
+
+    for row in range(4, 6):
+        for col in range(1, 9):
+            cell = ws.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = center
+            cell.font = text_font
+
+    ws.merge_cells('A6:C6')
+    ws['A6'] = '未付款金额'
+    ws['A6'].alignment = center
+    ws['H6'] = float(opening_outstanding)
+    ws['H6'].number_format = '#,##0.00'
+    for col in range(1, 9):
+        cell = ws.cell(row=6, column=col)
+        cell.border = border
+        cell.alignment = center
+        cell.font = text_font
+
+    row_no = 7
+    running_outstanding = opening_outstanding
+    for row in statement['rows']:
+        amount = Decimal(str(row['amount']))
+        running_outstanding = (running_outstanding + amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        values = [
+            row['index'],
+            format_cn_date(row['sales_date']),
+            row['remark'],
+            float(Decimal(str(row['received_weight'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+            float(Decimal(str(row['unit_price'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+            float(amount),
+            '',
+            float(running_outstanding),
+        ]
+        for col, value in enumerate(values, 1):
+            cell = ws.cell(row=row_no, column=col, value=value)
+            cell.border = border
+            cell.alignment = center if col != 3 else left
+            cell.font = text_font
+            if col in {4, 5, 6, 7, 8} and value != '':
+                cell.number_format = '#,##0.00'
+        row_no += 1
+
+    table_end_row = max(row_no, 13)
+    while row_no <= table_end_row:
+        for col in range(1, 9):
+            cell = ws.cell(row=row_no, column=col)
+            cell.border = border
+            cell.alignment = center
+        row_no += 1
+
+    ws.merge_cells('A13:B13')
+    ws.merge_cells('C13:H13')
+    ws['A13'] = '本期客户累计未付款项'
+    ws['A13'].alignment = left
+    ws['C13'] = float(outstanding_amount)
+    ws['C13'].number_format = '¥#,##0.00'
+    ws['C13'].alignment = left
+
+    ws.merge_cells('A14:B14')
+    ws.merge_cells('C14:H14')
+    ws['A14'] = '款项'
+    ws['A14'].alignment = left
+    ws['C14'] = f'RMB{statement["total_amount_uppercase"]}'
+    ws['C14'].font = note_font
+    ws['C14'].alignment = left
+
+    for row in range(13, 15):
+        for col in range(1, 9):
+            cell = ws.cell(row=row, column=col)
+            if row == 14:
+                cell.border = border
+            cell.font = note_font if row == 14 and col == 3 else text_font
+
+    ws.merge_cells('A16:C16')
+    ws.merge_cells('E16:H16')
+    ws['A16'] = '数据核对无误，请确认回传，谢谢!'
+    ws['E16'] = f'供货单位：{statement["seller_name"]}'
+    ws['A16'].alignment = left
+    ws['E16'].alignment = left
+
+    ws.merge_cells('E17:H17')
+    ws['A17'] = '客户确认（盖章 签名）'
+    ws['E17'] = '联系电话：13342626882'
+    ws['A17'].alignment = left
+    ws['E17'].alignment = left
+
+    ws.merge_cells('A18:C18')
+    ws.merge_cells('E18:H18')
+    cn_statement_date = format_cn_date(statement['statement_date'])
+    ws['A18'] = f'日期：{cn_statement_date}'
+    ws['E18'] = f'日期：{cn_statement_date}'
+    ws['A18'].alignment = left
+    ws['E18'].alignment = left
+
+    for row in range(16, 19):
+        for col in range(1, 9):
+            cell = ws.cell(row=row, column=col)
+            cell.font = text_font
+
+    widths = {'A': 6, 'B': 14, 'C': 20, 'D': 11, 'E': 13, 'F': 17, 'G': 17, 'H': 17}
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
+    for row, height in {1: 28, 2: 24, 3: 20, 4: 22, 5: 22, 13: 22, 14: 22, 16: 22, 17: 22, 18: 22}.items():
+        ws.row_dimensions[row].height = height
+
+    # Make Excel-to-PDF export fit a single A4 page width more reliably.
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_margins = PageMargins(left=0.25, right=0.25, top=0.35, bottom=0.35, header=0.2, footer=0.2)
+    ws.print_options.horizontalCentered = True
+    ws.print_options.verticalCentered = False
+    ws.print_title_rows = '$1:$5'
+    ws.print_area = f'$A$1:$H$18'
     wb.save(output_path)
 
 

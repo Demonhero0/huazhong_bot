@@ -6,6 +6,7 @@
 - `sales_entry.py`: fill customer allocation in the supplier workbook and append rows into `线材客户送货明细龙虾版.xlsx`
 - `delivery_entry.py`: fill truck execution details into both workbooks
 - `receipt_entry.py`: fill customer receipt date and received amount into the customer workbook
+- `update_sales_contract.py`: backfill or modify fields in an existing customer sales contract
 - `statement_issue.py`: issue customer statements and export Excel only
 - `list_order_contracts.py`: list supplier-side contracts as JSON
 - `list_sales_contracts.py`: list customer-side contracts as JSON
@@ -23,31 +24,31 @@ Customer lookup supports exact match first, then unique normalized/fuzzy match. 
 ### List supplier-side contracts
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "浙江凯航"
+./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
 ```
 
 ### List customer-side contracts
 
 ```bash
-./.venv/bin/python list_sales_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_sales_contracts.py -c "东莞建安"
 ```
 
 ### List customer-side receivable contracts
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安"
 ```
 
 ### Find pending supplier-side pickup rows
 
 ```bash
-./.venv/bin/python find_pending_order_rows.py -s "浙江凯航" -n 2026032401
+./.venv/bin/python src/find_pending_order_rows.py -s "浙江凯航" -n 2026032401
 ```
 
 ### Find pending customer-side delivery rows
 
 ```bash
-./.venv/bin/python find_pending_sales_rows.py -c "东莞建安" -n 2026032401
+./.venv/bin/python src/find_pending_sales_rows.py -c "东莞建安" -n 2026032401
 ```
 
 ## 订货 Inputs
@@ -62,25 +63,25 @@ Customer lookup supports exact match first, then unique normalized/fuzzy match. 
 Example:
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提"
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提"
 ```
 
 With explicit order date:
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" --order-date "2026.03.20"
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" --order-date "2026.03.20"
 ```
 
 With payment amount only:
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" -m 181151.6
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" -m 181151.6
 ```
 
 With explicit payment date and amount:
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" -m 181151.6 -d "2026.03.23"
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" -m 181151.6 -d "2026.03.23"
 ```
 
 ### Supplier Workbook Columns
@@ -119,25 +120,31 @@ Minimum fields to run:
 If the contract number is unknown:
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "浙江凯航"
+./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
 ```
 
 Example:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2
 ```
 
 With optional benchmark and price diff:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --benchmark "迁安自提" --price-diff "80"
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --benchmark "迁安自提" --price-diff "80"
 ```
 
 With explicit sales date:
 
 ```bash
-./.venv/bin/python sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --sales-date "2026.03.20"
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --sales-date "2026.03.20"
+```
+
+If the sales contract already exists and you only need to backfill or modify customer-workbook fields:
+
+```bash
+./.venv/bin/python src/update_sales_contract.py -c "东莞建安" -n 2026032401 --set benchmark=迁安自提 --set price_diff=70
 ```
 
 The customer workbook `合同编号` is generated from `销售日期`, for example `2026.03.20 -> 2026032001`.
@@ -168,6 +175,7 @@ The customer workbook `合同编号` is generated from `销售日期`, for examp
 - Do not infer `对标` or `成交价差`; only write user-provided values.
 - Customer input may be a shorthand; prefer resolving to an existing customer sheet instead of creating a new one when there is a unique match.
 - For sales, if the user only gives customer and truck count, ask for or derive supplier first by listing candidate contracts per supplier.
+- After a sales contract already exists, use `update_sales_contract.py` instead of rerunning `sales_entry.py` to backfill fields such as `对标` and `成交价差`.
 
 ## 送货 Inputs
 
@@ -196,13 +204,13 @@ Required freight fields:
 Example:
 
 ```bash
-./.venv/bin/python delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --truck-no "8888" --factory-weight 31.25 --received-weight 31.20 --fleet "英杰运输" --freight "35元/吨" --freight-tax "含税"
+./.venv/bin/python src/delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --truck-no "8888" --factory-weight 31.25 --received-weight 31.20 --fleet "英杰运输" --freight "35元/吨" --freight-tax "含税"
 ```
 
 With explicit dock and delivery date:
 
 ```bash
-./.venv/bin/python delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --delivery-date "2026.03.25" --truck-no "8888" --factory-weight 31.25 --received-weight 31.20 --fleet "英杰运输" --freight "1200元" --freight-tax "不含税" --dock "旧港仓"
+./.venv/bin/python src/delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --delivery-date "2026.03.25" --truck-no "8888" --factory-weight 31.25 --received-weight 31.20 --fleet "英杰运输" --freight "1200元" --freight-tax "不含税" --dock "旧港仓"
 ```
 
 ### Fields Written By 送货
@@ -254,20 +262,20 @@ Paid status rule:
 Command:
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --paid all --statement-date "2026.03.31"
+./.venv/bin/python src/statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --paid all --statement-date "2026.03.31"
 ```
 
 By contract:
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞市建安管桩有限公司" --contract "2026032401" --statement-date "2026.03.31"
+./.venv/bin/python src/statement_issue.py --customer "东莞市建安管桩有限公司" --contract "2026032401" --statement-date "2026.03.31"
 ```
 
 If multiple contracts match, rerun with one of:
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode summary
-./.venv/bin/python statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode split
+./.venv/bin/python src/statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode summary
+./.venv/bin/python src/statement_issue.py --customer "东莞市建安管桩有限公司" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode split
 ```
 
 ### Statement Rules
@@ -298,26 +306,26 @@ Optional fields:
 Read-first example:
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安" --settled no
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安" --settled no
 ```
 
 Filtered examples:
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安" -n 2026032401
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --settled all
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安" -n 2026032401
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --settled all
 ```
 
 Write example:
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "东莞建安" -n 2026032401 -a 50000
+./.venv/bin/python src/receipt_entry.py -c "东莞建安" -n 2026032401 -a 50000
 ```
 
 With explicit receipt date:
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "东莞建安" -n 2026032401 -a 50000 --receipt-date "2026.03.24"
+./.venv/bin/python src/receipt_entry.py -c "东莞建安" -n 2026032401 -a 50000 --receipt-date "2026.03.24"
 ```
 
 ### Receipt Rules

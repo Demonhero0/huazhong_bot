@@ -16,11 +16,7 @@ import argparse
 import os
 import re
 
-from workbook_query_utils import load_order_workbook, load_sales_workbook, resolve_sales_sheet_name
-
-
-ORDER_FILE = os.path.join(os.path.dirname(__file__), '线材供应商提货明细龙虾版.xlsx')
-SALES_FILE = os.path.join(os.path.dirname(__file__), '线材客户送货明细龙虾版.xlsx')
+from workbook_query_utils import ORDER_FILE, SALES_FILE, load_order_workbook, load_sales_workbook, resolve_sales_sheet_name
 
 
 def is_blank(value):
@@ -54,7 +50,7 @@ def find_pending_order_row(ws, contract_no):
     details have not been filled yet.
     """
     for row in range(5, ws.max_row + 1):
-        if ws.cell(row=row, column=2).value != contract_no:
+        if str(ws.cell(row=row, column=2).value) != str(contract_no):
             continue
 
         pickup_date = ws.cell(row=row, column=8).value   # H 提货日期
@@ -72,7 +68,7 @@ def find_pending_sales_row(ws, contract_no):
     details have not been filled yet.
     """
     for row in range(5, ws.max_row + 1):
-        if ws.cell(row=row, column=2).value != contract_no:
+        if str(ws.cell(row=row, column=2).value) != str(contract_no):
             continue
 
         delivery_date = ws.cell(row=row, column=8).value  # H 送货日期

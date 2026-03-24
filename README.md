@@ -17,16 +17,17 @@
 
 ## 目录说明
 
-- [`order_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/order_entry.py)：订货
-- [`sales_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/sales_entry.py)：销货
-- [`delivery_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/delivery_entry.py)：送货
-- [`receipt_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/receipt_entry.py)：收款
-- [`statement_issue.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/statement_issue.py)：出具对账单
-- [`list_order_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/list_order_contracts.py)：查询供应商合同
-- [`list_sales_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/list_sales_contracts.py)：查询客户销货合同
-- [`find_pending_order_rows.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/find_pending_order_rows.py)：查询待送货的供应商行
-- [`find_pending_sales_rows.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/find_pending_sales_rows.py)：查询待送货的客户行
-- [`list_receivable_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/list_receivable_contracts.py)：查询待收款合同
+- [`src/order_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/order_entry.py)：订货
+- [`src/sales_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/sales_entry.py)：销货
+- [`src/delivery_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/delivery_entry.py)：送货
+- [`src/receipt_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/receipt_entry.py)：收款
+- [`src/statement_issue.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/statement_issue.py)：出具对账单
+- [`src/update_sales_contract.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/update_sales_contract.py)：回填或修改客户台账中的销货合同信息
+- [`src/list_order_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/list_order_contracts.py)：查询供应商合同
+- [`src/list_sales_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/list_sales_contracts.py)：查询客户销货合同
+- [`src/find_pending_order_rows.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/find_pending_order_rows.py)：查询待送货的供应商行
+- [`src/find_pending_sales_rows.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/find_pending_sales_rows.py)：查询待送货的客户行
+- [`src/list_receivable_contracts.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/list_receivable_contracts.py)：查询待收款合同
 - [`skills/steel-wire-order-sales/SKILL.md`](/Users/jianzhongsu/Desktop/openclaw_huazhong/skills/steel-wire-order-sales/SKILL.md)：给 OpenClaw 使用的 skill
 
 ## 环境准备
@@ -73,7 +74,7 @@ pip install -r requirements.txt
 基础命令：
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提"
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提"
 ```
 
 常用可选参数：
@@ -85,7 +86,7 @@ pip install -r requirements.txt
 示例：
 
 ```bash
-./.venv/bin/python order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" --order-date "2026.03.24" -m 181151.6
+./.venv/bin/python src/order_entry.py -s "浙江凯航" -p 3320 -n 2 -b "迁安" -e "6.5厘" -t "自提" --order-date "2026.03.24" -m 181151.6
 ```
 
 规则：
@@ -102,13 +103,13 @@ pip install -r requirements.txt
 如果不知道可销合同，先查：
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "浙江凯航"
+./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
 ```
 
 基础命令：
 
 ```bash
-./.venv/bin/python sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2
 ```
 
 常用可选参数：
@@ -120,7 +121,7 @@ pip install -r requirements.txt
 示例：
 
 ```bash
-./.venv/bin/python sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --sales-date "2026.03.24" --benchmark "迁安自提" --price-diff "80"
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --sales-date "2026.03.24" --benchmark "迁安自提" --price-diff "80"
 ```
 
 规则：
@@ -128,6 +129,37 @@ pip install -r requirements.txt
 - 客户简称支持模糊解析，例如 `东莞建安 -> 东莞市建安管桩有限公司`
 - 销货合同编号会跟销售日期同步生成
 - `对标` 和 `成交价差` 只有你显式提供时才会写入
+
+如果销货已经完成，后续要补写或修改客户台账字段，不要重复执行 `sales_entry.py`，而是用通用回填脚本：
+
+```bash
+./.venv/bin/python src/update_sales_contract.py -c "东莞建安" -n 2026032401 --set benchmark=迁安自提 --set price_diff=70
+```
+
+这个脚本会按 `客户 + 销货合同号` 定位整笔合同，并把指定字段批量写到该合同下的所有行。
+
+目前支持的常用字段包括：
+
+- `benchmark`
+- `price_diff`
+- `delivery_mode`
+- `sell_price`
+- `sales_date`
+- `fleet`
+- `freight`
+- `freight_tax`
+- `supplier`
+- `truck_no`
+- `factory_weight`
+- `received_weight`
+- `receipt_date`
+- `received_amount`
+
+示例：
+
+```bash
+./.venv/bin/python src/update_sales_contract.py -c "东莞建安" -n 2026032401 --set delivery_mode=自提 --set sell_price=3420
+```
 
 ### 3. 送货
 
@@ -137,14 +169,14 @@ pip install -r requirements.txt
 如果不知道待送货行，先查：
 
 ```bash
-./.venv/bin/python find_pending_order_rows.py -s "浙江凯航" -n 2026032401
-./.venv/bin/python find_pending_sales_rows.py -c "东莞建安" -n 2026032401
+./.venv/bin/python src/find_pending_order_rows.py -s "浙江凯航" -n 2026032401
+./.venv/bin/python src/find_pending_sales_rows.py -c "东莞建安" -n 2026032401
 ```
 
 基础命令：
 
 ```bash
-./.venv/bin/python delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --truck-no "682" --factory-weight 31.24 --received-weight 31.16 --fleet "货主帮" --freight "1000元" --freight-tax "含税"
+./.venv/bin/python src/delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date "2026.03.24" --truck-no "682" --factory-weight 31.24 --received-weight 31.16 --fleet "货主帮" --freight "1000元" --freight-tax "含税"
 ```
 
 常用可选参数：
@@ -171,25 +203,25 @@ pip install -r requirements.txt
 先查待收款合同：
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安"
 ```
 
 按合同筛选：
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安" -n 2026032401
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安" -n 2026032401
 ```
 
 基础命令：
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "东莞建安" -n 2026032401 -a 200000
+./.venv/bin/python src/receipt_entry.py -c "东莞建安" -n 2026032401 -a 200000
 ```
 
 指定收款日期：
 
 ```bash
-./.venv/bin/python receipt_entry.py -c "东莞建安" -n 2026032401 -a 200000 --receipt-date "2026.03.24"
+./.venv/bin/python src/receipt_entry.py -c "东莞建安" -n 2026032401 -a 200000 --receipt-date "2026.03.24"
 ```
 
 规则：
@@ -217,26 +249,26 @@ pip install -r requirements.txt
 基础命令：
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞建安"
+./.venv/bin/python src/statement_issue.py --customer "东莞建安"
 ```
 
 按合同导出：
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞建安" --contract "2026032401"
+./.venv/bin/python src/statement_issue.py --customer "东莞建安" --contract "2026032401"
 ```
 
 按时间区间导出：
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --paid no
+./.venv/bin/python src/statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --paid no
 ```
 
 如果筛中多个合同，可选：
 
 ```bash
-./.venv/bin/python statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode summary
-./.venv/bin/python statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode split
+./.venv/bin/python src/statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode summary
+./.venv/bin/python src/statement_issue.py --customer "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31" --multi-contract-mode split
 ```
 
 规则：
@@ -251,31 +283,31 @@ pip install -r requirements.txt
 查询供应商可销合同：
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "浙江凯航"
+./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
 ```
 
 查询客户销货合同：
 
 ```bash
-./.venv/bin/python list_sales_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_sales_contracts.py -c "东莞建安"
 ```
 
 查询客户待收款合同：
 
 ```bash
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安"
 ```
 
 查询待送货的供应商行：
 
 ```bash
-./.venv/bin/python find_pending_order_rows.py -s "浙江凯航" -n 2026032401
+./.venv/bin/python src/find_pending_order_rows.py -s "浙江凯航" -n 2026032401
 ```
 
 查询待送货的客户行：
 
 ```bash
-./.venv/bin/python find_pending_sales_rows.py -c "东莞建安" -n 2026032401
+./.venv/bin/python src/find_pending_sales_rows.py -c "东莞建安" -n 2026032401
 ```
 
 ## OpenClaw Skill
@@ -365,9 +397,9 @@ Use $steel-wire-order-sales. 帮我出具中山豪强未付款的对账单。
 部署完后，建议先做一次只读验证：
 
 ```bash
-./.venv/bin/python list_order_contracts.py -s "浙江凯航"
-./.venv/bin/python list_sales_contracts.py -c "东莞建安"
-./.venv/bin/python list_receivable_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
+./.venv/bin/python src/list_sales_contracts.py -c "东莞建安"
+./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安"
 ```
 
 如果这 3 条都能正常返回，说明：

@@ -21,12 +21,7 @@ import sys
 import os
 import argparse
 
-from workbook_query_utils import resolve_sales_sheet_name
-
-
-# File paths
-ORDER_FILE = os.path.join(os.path.dirname(__file__), '线材供应商提货明细龙虾版.xlsx')
-SALES_FILE = os.path.join(os.path.dirname(__file__), '线材客户送货明细龙虾版.xlsx')
+from workbook_query_utils import ORDER_FILE, SALES_FILE, resolve_sales_sheet_name
 
 
 def find_contracts_with_empty_cells(ws, supplier=None):
