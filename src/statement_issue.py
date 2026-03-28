@@ -20,7 +20,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.page import PageMargins
 
-from workbook_query_utils import SALES_FILE, resolve_sales_sheet_name
+from workbook_query_utils import SALES_FILE, get_contract_receivable_snapshot, resolve_sales_sheet_name
 
 
 SELLER_NAME = '东莞市华众供应链管理有限公司'
@@ -177,7 +177,7 @@ def build_row_record(ws, row: int) -> dict[str, Any]:
         'unit_price': ws.cell(row=row, column=19).value,
         'amount': money(ws.cell(row=row, column=20).value),
         'receipt_date': ws.cell(row=row, column=21).value,
-        'received_amount': ws.cell(row=row, column=22).value,
+        'received_amount': money(ws.cell(row=row, column=22).value),
         'unreceived_amount': ws.cell(row=row, column=23).value,
         'remark': f'{brand or ""} {spec or ""}'.strip(),
     }
@@ -234,7 +234,7 @@ def collect_matching_contracts(
         rows.sort(key=lambda item: item['row'])
         total_received_weight = sum(Decimal(str(item['received_weight'] or 0)) for item in rows)
         total_amount = sum(item['amount'] for item in rows)
-        last_row = rows[-1]
+        balance = get_contract_receivable_snapshot(ws, ws_values, contract_no)
         contracts.append({
             'contract_no': contract_no,
             'sales_date': rows[0]['sales_date'],
@@ -243,8 +243,8 @@ def collect_matching_contracts(
             'truck_count': len(rows),
             'total_received_weight': total_received_weight.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
             'total_amount': total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
-            'received_amount_total': money(last_row['received_amount']),
-            'unreceived_amount_total': money(last_row['unreceived_amount']),
+            'received_amount_total': balance['received_amount'].quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if balance else Decimal('0.00'),
+            'unreceived_amount_total': balance['unreceived_amount'].quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if balance else Decimal('0.00'),
         })
 
     return resolved_customer, match_mode, contracts
@@ -280,10 +280,13 @@ def build_statement_payload(
             'received_weight': f'{Decimal(str(row["received_weight"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP):f}',
             'unit_price': f'{Decimal(str(row["unit_price"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP):f}',
             'amount': format_money(row['amount']),
+            'received_amount': format_money(row['received_amount']) if row['received_amount'] != Decimal('0.00') else '',
             'remark': row['remark'],
             'sales_date': row['sales_date'] or '',
             'contract_no': row['sales_contract'],
         })
+
+    outstanding_amount_abs = abs(unreceived_amount_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
     return {
         'seller_name': SELLER_NAME,
@@ -297,7 +300,7 @@ def build_statement_payload(
         'truck_count': len(display_rows),
         'total_received_weight': total_received_weight.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
         'total_amount': total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
-        'total_amount_uppercase': amount_to_uppercase(total_amount),
+        'outstanding_amount_uppercase': amount_to_uppercase(outstanding_amount_abs),
         'received_amount_total': received_amount_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
         'unreceived_amount_total': unreceived_amount_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
     }
@@ -316,10 +319,7 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     text_font = Font(size=10)
     note_font = Font(size=10, color='FF0000', bold=True)
 
-    outstanding_amount = (statement['total_amount'] - statement['received_amount_total']).quantize(
-        Decimal('0.01'),
-        rounding=ROUND_HALF_UP,
-    )
+    outstanding_amount = statement['unreceived_amount_total'].quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     opening_outstanding = Decimal('0.00')
 
     ws.merge_cells('A1:H1')
@@ -376,7 +376,11 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     running_outstanding = opening_outstanding
     for row in statement['rows']:
         amount = Decimal(str(row['amount']))
-        running_outstanding = (running_outstanding + amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        received_amount = Decimal(str(row['received_amount'] or 0))
+        running_outstanding = (running_outstanding + received_amount - amount).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
         values = [
             row['index'],
             format_cn_date(row['sales_date']),
@@ -384,7 +388,7 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
             float(Decimal(str(row['received_weight'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
             float(Decimal(str(row['unit_price'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
             float(amount),
-            '',
+            float(received_amount) if row['received_amount'] != '' else '',
             float(running_outstanding),
         ]
         for col, value in enumerate(values, 1):
@@ -416,7 +420,7 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     ws.merge_cells('C14:H14')
     ws['A14'] = '款项'
     ws['A14'].alignment = left
-    ws['C14'] = f'RMB{statement["total_amount_uppercase"]}'
+    ws['C14'] = f'RMB{statement["outstanding_amount_uppercase"]}'
     ws['C14'].font = note_font
     ws['C14'].alignment = left
 
