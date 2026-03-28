@@ -402,3 +402,71 @@ def find_first_receipt_pending_row(ws, contract_no):
         if is_blank(receipt_date) and is_blank(received_amount):
             return row
     return None
+
+
+def summarize_invoice_rows(ws_formulas, ws_values, customer_name, date_from=None, date_to=None, invoiced='no', contract_no=None):
+    rows = []
+    for row in range(5, ws_formulas.max_row + 1):
+        current_contract_no = ws_formulas.cell(row=row, column=2).value
+        if is_blank(current_contract_no):
+            continue
+        if contract_no and str(current_contract_no) != str(contract_no):
+            continue
+
+        delivery_date = ws_formulas.cell(row=row, column=8).value
+        if is_blank(delivery_date):
+            continue
+
+        delivery_dt = parse_date_text(delivery_date)
+        if date_from and delivery_dt < date_from:
+            continue
+        if date_to and delivery_dt > date_to:
+            continue
+
+        invoice_time = ws_formulas.cell(row=row, column=24).value
+        is_invoiced = not is_blank(invoice_time)
+        if invoiced == 'yes' and not is_invoiced:
+            continue
+        if invoiced == 'no' and is_invoiced:
+            continue
+
+        sales_amount = resolve_sales_amount(ws_formulas, ws_values, row)
+        rows.append({
+            'row': row,
+            'customer': customer_name,
+            'contract_no': str(current_contract_no),
+            'sales_date': ws_formulas.cell(row=row, column=3).value,
+            'delivery_date': delivery_date,
+            'supplier': ws_formulas.cell(row=row, column=12).value,
+            'brand': ws_formulas.cell(row=row, column=4).value,
+            'spec': ws_formulas.cell(row=row, column=5).value,
+            'truck_no': ws_formulas.cell(row=row, column=16).value,
+            'received_weight': ws_formulas.cell(row=row, column=18).value,
+            'unit_price': ws_formulas.cell(row=row, column=19).value,
+            'sales_amount': f'{sales_amount:.2f}',
+            'receipt_date': ws_formulas.cell(row=row, column=21).value,
+            'received_amount': f'{to_decimal(ws_formulas.cell(row=row, column=22).value):.2f}',
+            'invoice_time': invoice_time,
+            'is_invoiced': is_invoiced,
+        })
+    return rows
+
+
+def find_pending_invoice_rows(ws, contract_no):
+    rows = []
+    for row in iter_contract_rows(ws, contract_no):
+        delivery_date = ws.cell(row=row, column=8).value
+        invoice_time = ws.cell(row=row, column=24).value
+        if is_blank(delivery_date) or not is_blank(invoice_time):
+            continue
+        rows.append({
+            'row': row,
+            'delivery_date': delivery_date,
+            'truck_no': ws.cell(row=row, column=16).value,
+            'received_weight': ws.cell(row=row, column=18).value,
+            'unit_price': ws.cell(row=row, column=19).value,
+            'receipt_date': ws.cell(row=row, column=21).value,
+            'received_amount': ws.cell(row=row, column=22).value,
+            'invoice_time': invoice_time,
+        })
+    return rows

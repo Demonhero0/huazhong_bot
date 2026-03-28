@@ -6,11 +6,13 @@
 - `sales_entry.py`: fill customer allocation in the supplier workbook and append rows into `线材客户送货明细龙虾版.xlsx`
 - `delivery_entry.py`: fill truck execution details into both workbooks
 - `receipt_entry.py`: fill customer receipt date and received amount into the customer workbook
+- `invoice_entry.py`: fill customer invoice time into the customer workbook
 - `update_sales_contract.py`: backfill or modify fields in an existing customer sales contract
 - `statement_issue.py`: issue customer statements and export Excel only
 - `list_order_contracts.py`: list supplier-side contracts as JSON
 - `list_sales_contracts.py`: list customer-side contracts as JSON
 - `list_receivable_contracts.py`: list customer-side receivable contracts as JSON
+- `list_invoice_rows.py`: list customer-side invoice-status rows as JSON
 - `find_pending_order_rows.py`: list supplier-side pending pickup rows as JSON
 - `find_pending_sales_rows.py`: list customer-side pending delivery rows as JSON
 - `requirements.txt`: currently only requires `openpyxl`
@@ -43,6 +45,12 @@ Customer lookup supports exact match first, then unique normalized/fuzzy match. 
 
 ```bash
 ./.venv/bin/python src/list_receivable_contracts.py -c "东莞建安"
+```
+
+### List customer-side invoice rows
+
+```bash
+./.venv/bin/python src/list_invoice_rows.py -c "东莞建安"
 ```
 
 ### Find pending supplier-side pickup rows
@@ -251,6 +259,55 @@ Customer workbook:
 - Customer side: first pending row under `customer + sales_contract`
 - Customer sheet lookup supports unique fuzzy matching for shorthand customer names.
 - Use the pending-row query tools to inspect the exact row sequence before writing.
+
+## 开票 Inputs
+
+Minimum fields to run:
+
+- Customer sheet
+- Customer-side sales contract number
+
+Optional fields:
+
+- Invoice date
+- Invoice row count
+- Explicit worksheet row numbers
+
+Query example:
+
+```bash
+./.venv/bin/python src/list_invoice_rows.py -c "东莞建安" --date-from "2026.03.01" --date-to "2026.03.31"
+```
+
+Execution example:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "东莞建安" -n 2026032301
+```
+
+With explicit invoice date:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "东莞建安" -n 2026032301 --invoice-date "2026.03.28"
+```
+
+Only invoice the first pending row:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "东莞建安" -n 2026032301 --count 1
+```
+
+### Fields Written By 开票
+
+Customer workbook:
+
+- `X`: 开票时间
+
+### Matching Rule
+
+- A row is eligible only when `送货日期(H)` is already filled.
+- A row is pending invoice when `开票时间(X)` is still empty.
+- If neither `--count` nor `--row` is given, `invoice_entry.py` writes the invoice date to all pending delivered rows under that contract.
 
 ## 出具对账单 Inputs
 

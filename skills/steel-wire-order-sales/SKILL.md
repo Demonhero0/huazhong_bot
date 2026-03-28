@@ -1,13 +1,13 @@
 ---
 name: steel-wire-order-sales
-description: Use when working in this repository on the steel wire Excel workflow for 订货, 销货, 送货, 收款, and 出具对账单. This skill maps natural-language workflow requests to the local scripts and read tools in this repository.
+description: Use when working in this repository on the steel wire Excel workflow for 订货, 销货, 送货, 收款, 开票, and 出具对账单. This skill maps natural-language workflow requests to the local scripts and read tools in this repository.
 ---
 
 # Steel Wire Order Sales
 
 ## Overview
 
-Use this skill for the local steel-wire ledger workflow in this repo. It converts user requests about `订货`, `销货`, `送货`, `收款`, and `出具对账单` into concrete commands against the existing Python scripts and Excel files.
+Use this skill for the local steel-wire ledger workflow in this repo. It converts user requests about `订货`, `销货`, `送货`, `收款`, `开票`, and `出具对账单` into concrete commands against the existing Python scripts and Excel files.
 
 Read [references/workflow.md](references/workflow.md) when you need the field mapping, workbook columns, or example commands.
 
@@ -18,6 +18,7 @@ Read [references/workflow.md](references/workflow.md) when you need the field ma
 - If the user wants to backfill or modify fields in an existing customer sales contract, use `update_sales_contract.py`.
 - If the user wants to fill actual truck execution details into both workbooks, use the `送货` workflow with `delivery_entry.py`.
 - If the user wants to register customer receipts into the sales workbook, use the `收款` workflow with `receipt_entry.py`.
+- If the user wants to query or write invoice timestamps in the sales workbook, use the `开票` workflow with `list_invoice_rows.py` and `invoice_entry.py`.
 - If the user wants to generate a customer statement, use the `出具对账单` workflow with `statement_issue.py`. This workflow exports Excel only.
 - If the user gives incomplete `销货` data, do not guess missing values such as supplier, contract number, selling price, or delivery mode. Tell the user exactly which fields are missing.
 
@@ -35,6 +36,7 @@ Use these tools first when the user needs contract discovery or row-level target
 - `./.venv/bin/python src/list_order_contracts.py -s "<supplier>"`
 - `./.venv/bin/python src/list_sales_contracts.py -c "<customer>"`
 - `./.venv/bin/python src/list_receivable_contracts.py -c "<customer>" [--settled no|yes|all]`
+- `./.venv/bin/python src/list_invoice_rows.py [-c "<customer>"] [--contract "<contract_no>"] [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--invoiced no|yes|all]`
 - `./.venv/bin/python src/update_sales_contract.py -c "<customer>" -n <contract_no> --set <field=value>`
 - `./.venv/bin/python src/find_pending_order_rows.py -s "<supplier>" -n <order_contract>`
 - `./.venv/bin/python src/find_pending_sales_rows.py -c "<customer>" -n <sales_contract>`
@@ -46,6 +48,7 @@ Rules:
 - `list_order_contracts.py` also supports no `-s` argument, in which case it scans all suppliers and returns every contract that still has unassigned customer rows.
 - Before `送货`, use `find_pending_order_rows.py` and `find_pending_sales_rows.py` when there is any ambiguity about which row will be updated.
 - Before `收款`, prefer `list_receivable_contracts.py` to confirm the contract is still unsettled and has remaining receipt slots.
+- Before `开票`, prefer `list_invoice_rows.py` to confirm which delivered rows are still not invoiced.
 - Customer sheet lookup supports exact match first, then unique normalized/fuzzy match for common short names such as `东莞建安 -> 东莞市建安管桩有限公司`.
 
 ## 订货 Workflow
@@ -267,6 +270,47 @@ Rules:
 - Settlement status and outstanding-balance checks must use the contract's last row as the balance row, but the actual balance should be computed from the contract rows' sales amounts and received amounts instead of relying on stale Excel formula cache values.
 - If the input amount exceeds the current outstanding balance, stop and raise an error.
 - Do not guess a receipt amount, including for full settlement. The user must provide the amount explicitly.
+
+## 开票 Workflow
+
+Read-first template:
+
+```bash
+./.venv/bin/python src/list_invoice_rows.py [-c "<customer>"] [--contract "<contract_no>"] [--date-from "<YYYY.MM.DD>"] [--date-to "<YYYY.MM.DD>"] [--invoiced no|yes|all]
+```
+
+Execution template:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "<customer>" -n <contract_no>
+```
+
+With explicit invoice date:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "<customer>" -n <contract_no> --invoice-date "<YYYY.MM.DD>"
+```
+
+Only invoice the first N pending rows:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "<customer>" -n <contract_no> --count <n>
+```
+
+Invoice specific worksheet rows:
+
+```bash
+./.venv/bin/python src/invoice_entry.py -c "<customer>" -n <contract_no> --row <row_no> [--row <row_no> ...]
+```
+
+Rules:
+
+- `开票时间` is written to customer workbook column `X`.
+- A row is considered `未开票` when `开票时间(X)` is empty.
+- Query results are row-based and intended to help the agent target exact delivered truck rows.
+- `invoice_date` defaults to today when omitted.
+- `invoice_entry.py` only writes delivered rows where `送货日期(H)` is already filled and `开票时间(X)` is still empty.
+- Use either `--count` or `--row`, not both.
 
 ## Response Style
 
