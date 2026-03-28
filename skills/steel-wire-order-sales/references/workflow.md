@@ -27,6 +27,12 @@ Customer lookup supports exact match first, then unique normalized/fuzzy match. 
 ./.venv/bin/python src/list_order_contracts.py -s "浙江凯航"
 ```
 
+### List all currently sellable contracts across suppliers
+
+```bash
+./.venv/bin/python src/list_order_contracts.py
+```
+
 ### List customer-side contracts
 
 ```bash

@@ -43,6 +43,7 @@ Rules:
 
 - These tools return JSON and are preferred over scanning Excel manually.
 - Before `销货`, use `list_order_contracts.py` if the supplier contract is unknown.
+- `list_order_contracts.py` also supports no `-s` argument, in which case it scans all suppliers and returns every contract that still has unassigned customer rows.
 - Before `送货`, use `find_pending_order_rows.py` and `find_pending_sales_rows.py` when there is any ambiguity about which row will be updated.
 - Before `收款`, prefer `list_receivable_contracts.py` to confirm the contract is still unsettled and has remaining receipt slots.
 - Customer sheet lookup supports exact match first, then unique normalized/fuzzy match for common short names such as `东莞建安 -> 东莞市建安管桩有限公司`.
