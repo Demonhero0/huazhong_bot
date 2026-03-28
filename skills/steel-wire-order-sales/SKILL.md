@@ -100,7 +100,6 @@ Required fields for actual execution:
 - `contract_no`
 - `customer`
 - `price`
-- `delivery`
 - `trucks`
 
 If `contract_no` is unknown, first list available contracts:
@@ -112,27 +111,35 @@ If `contract_no` is unknown, first list available contracts:
 Execution template:
 
 ```bash
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -t <trucks>
+```
+
+With explicit delivery mode:
+
+```bash
 ./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks>
 ```
 
 With explicit sales date:
 
 ```bash
-./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --sales-date "<YYYY.MM.DD>"
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -t <trucks> --sales-date "<YYYY.MM.DD>"
 ```
 
 With optional benchmark and price diff:
 
 ```bash
-./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -d "<delivery>" -t <trucks> --benchmark "<benchmark>" --price-diff "<price_diff>"
+./.venv/bin/python src/sales_entry.py -s "<supplier>" -n <contract_no> -c "<customer>" -p <price> -t <trucks> --benchmark "<benchmark>" --price-diff "<price_diff>"
 ```
 
 Rules:
 
-- `delivery` must be `自提` or `送到`.
+- `delivery` is optional and defaults to `送到`.
+- If provided, `delivery` must be `自提` or `送到`.
 - `sales_date` defaults to today and can be overridden with `--sales-date`.
 - `benchmark` maps directly to the sales workbook `对标(F)` column if provided.
 - `price_diff` maps directly to the sales workbook `成交价差(G)` column if provided.
+- The sales workbook `运输方式(N)` is copied from the supplier workbook `运输方式(G)`.
 - Do not infer `benchmark` or `price_diff`; only write them when the user explicitly provides them.
 - Customer names may be short inputs; the script resolves them to an existing customer sheet when there is a unique fuzzy match.
 - Sales workbook contract numbers are generated from `sales_date` in `YYYYMMDD01` format.
@@ -150,7 +157,7 @@ Rules:
 - Use this after a sales contract already exists and you need to backfill or adjust customer-workbook fields.
 - This script updates all rows under the matching customer sales contract.
 - Do not rerun `sales_entry.py` just to backfill `benchmark` or `price_diff` after customer rows are already assigned.
-- Supported `--set` fields currently include: `sales_date`, `brand`, `spec`, `benchmark`, `price_diff`, `delivery_date`, `fleet`, `freight`, `freight_tax`, `supplier`, `order_price`, `delivery_mode`, `dock`, `truck_no`, `factory_weight`, `received_weight`, `sell_price`, `receipt_date`, `received_amount`.
+- Supported `--set` fields currently include: `sales_date`, `brand`, `spec`, `benchmark`, `price_diff`, `delivery_date`, `fleet`, `freight`, `freight_tax`, `supplier`, `order_price`, `transport_mode`, `delivery_mode`, `dock`, `truck_no`, `factory_weight`, `received_weight`, `sell_price`, `receipt_date`, `received_amount`.
 
 ## 送货 Workflow
 

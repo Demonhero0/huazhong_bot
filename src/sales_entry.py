@@ -182,17 +182,17 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
     print(f'Empty customer cells: {empty_count} (rows: {empty_rows})')
     print(f'Transport method: {transport}')
     
-    # Validate input arrays have same length
+    # Validate required input arrays
     num_customers = len(customers)
-    if len(prices) != num_customers or len(deliveries) != num_customers:
-        print(f'\n❌ Error: Number of -c, -p, and -d arguments must be the same!')
+    if len(prices) != num_customers:
+        print(f'\n❌ Error: Number of -c and -p arguments must be the same!')
         return False
     
-    # Extend trucks_list and deliveries to match num_customers (defaults: trucks=1, delivery="送到")
+    # Extend optional arrays to match num_customers (defaults: trucks=1, delivery="送到")
     while len(trucks_list) < num_customers:
         trucks_list.append(1)
     while len(deliveries) < num_customers:
-        deliveries.append('送到')  # Default delivery type is "送到"
+        deliveries.append('送到')
     while len(benchmarks) < num_customers:
         benchmarks.append('')
     while len(price_diffs) < num_customers:
@@ -214,7 +214,7 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
             'customer': resolved_customer,
             'input_customer': input_customer,
             'price': prices[i],
-            'delivery': deliveries[i] if deliveries[i] else '送到',  # Default to "送到"
+            'delivery': deliveries[i] if deliveries[i] else '送到',
             'trucks': trucks_list[i] if i < len(trucks_list) else 1,
             'benchmark': benchmarks[i] if i < len(benchmarks) else '',
             'price_diff': price_diffs[i] if i < len(price_diffs) else '',
@@ -351,8 +351,8 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
             ws_sales.cell(row=current_row, column=12, value=supplier)
             # M 列：提货价
             ws_sales.cell(row=current_row, column=13, value=order_price)
-            # N 列：自提/送到
-            ws_sales.cell(row=current_row, column=14, value=order_info['delivery'])
+            # N 列：运输方式（与供应商台账 G 列一致）
+            ws_sales.cell(row=current_row, column=14, value=order_info['transport'])
             # S 列：单价
             ws_sales.cell(row=current_row, column=19, value=sell_price)
             # T 列：销售金额（公式，每行都有）
@@ -435,9 +435,9 @@ Examples:
         enter_sales(args.supplier, None, [], [], [], [])
     elif not args.customer:
         print('\n❌ Error: No customer info provided!')
-        print('Use -c, -p, -d to specify customer info (trucks -t is optional, defaults to 1)')
+        print('Use -c and -p to specify customer info (-d is optional and defaults to "送到"; -t is optional and defaults to 1)')
         print('\nExample:')
-        print(f'  python3 sales_entry.py -s "{args.supplier}" -n 2026032301 -c "东莞建安" -p 3400 -d 自提')
+        print(f'  python3 sales_entry.py -s "{args.supplier}" -n 2026032301 -c "东莞建安" -p 3400')
         sys.exit(1)
     else:
         # Execute entry

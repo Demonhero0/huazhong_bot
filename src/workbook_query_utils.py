@@ -312,6 +312,7 @@ def find_pending_sales_rows(ws, contract_no):
             'supplier': ws.cell(row=row, column=12).value,
             'brand': ws.cell(row=row, column=4).value,
             'spec': ws.cell(row=row, column=5).value,
+            'transport_mode': ws.cell(row=row, column=14).value,
             'delivery_mode': ws.cell(row=row, column=14).value,
             'sell_price': ws.cell(row=row, column=19).value,
             'delivery_date': delivery_date,

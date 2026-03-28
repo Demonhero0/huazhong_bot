@@ -114,7 +114,6 @@ Minimum fields to run:
 - Contract number
 - Customer name
 - Selling price
-- Delivery mode
 - Truck count
 
 If the contract number is unknown:
@@ -126,19 +125,19 @@ If the contract number is unknown:
 Example:
 
 ```bash
-./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -t 2
 ```
 
 With optional benchmark and price diff:
 
 ```bash
-./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --benchmark "迁安自提" --price-diff "80"
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -t 2 --benchmark "迁安自提" --price-diff "80"
 ```
 
 With explicit sales date:
 
 ```bash
-./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -d "送到" -t 2 --sales-date "2026.03.20"
+./.venv/bin/python src/sales_entry.py -s "浙江凯航" -n 2026032401 -c "东莞建安" -p 3400 -t 2 --sales-date "2026.03.20"
 ```
 
 If the sales contract already exists and you only need to backfill or modify customer-workbook fields:
@@ -148,6 +147,8 @@ If the sales contract already exists and you only need to backfill or modify cus
 ```
 
 The customer workbook `合同编号` is generated from `销售日期`, for example `2026.03.20 -> 2026032001`.
+
+If `-d/--delivery` is omitted, the supplier workbook `R` 列 `自提/送到` defaults to `送到`. The customer workbook `N` 列 `运输方式` is copied from the supplier workbook `G` 列 `运输方式`.
 
 ### Customer Workbook Columns
 
@@ -160,7 +161,7 @@ The customer workbook `合同编号` is generated from `销售日期`, for examp
 - `G`: 成交价差
 - `L`: 供应商
 - `M`: 提货价
-- `N`: 自提/送到
+- `N`: 运输方式
 - `S`: 单价
 - `T`: 销售金额公式 `=R*S`
 - `U`: 收款日期

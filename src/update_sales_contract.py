@@ -28,6 +28,7 @@ FIELD_MAP = {
     'freight_tax': 11,
     'supplier': 12,
     'order_price': 13,
+    'transport_mode': 14,
     'delivery_mode': 14,
     'dock': 15,
     'truck_no': 16,
