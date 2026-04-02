@@ -31,3 +31,7 @@ env/
 build/
 dist/
 *.egg-info/
+
+# cc-connect
+.cc-connect-data
+cc-connect*
