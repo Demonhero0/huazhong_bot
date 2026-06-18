@@ -21,7 +21,7 @@ import sys
 import os
 import argparse
 
-from workbook_query_utils import ORDER_FILE, SALES_FILE, resolve_sales_sheet_name
+from workbook_query_utils import ORDER_FILE, SALES_FILE, get_order_sheet_layout, resolve_sales_sheet_name
 
 
 def find_contracts_with_empty_cells(ws, supplier=None):
@@ -30,13 +30,14 @@ def find_contracts_with_empty_cells(ws, supplier=None):
     Returns: list of (contract_no, start_row, end_row, empty_count, transport_method)
     """
     contracts = {}
+    layout = get_order_sheet_layout(ws)
     
     for row in range(5, ws.max_row + 1):
         contract_no = ws.cell(row=row, column=2).value  # Column B
         if not contract_no:
             continue
         
-        customer = ws.cell(row=row, column=16).value  # Column P
+        customer = ws.cell(row=row, column=layout['customer']).value
         transport = ws.cell(row=row, column=7).value  # Column G
         
         if contract_no not in contracts:
@@ -83,10 +84,11 @@ def read_order_info(ws, row):
     Read order information from a specific row
     Returns: dict with order info
     """
+    layout = get_order_sheet_layout(ws)
     return {
         'brand': ws.cell(row=row, column=4).value,  # D 列：品牌
         'spec': ws.cell(row=row, column=6).value,   # F 列：规格
-        'order_price': ws.cell(row=row, column=11).value,  # K 列：单价
+        'order_price': ws.cell(row=row, column=layout['unit_price']).value,
         'transport': ws.cell(row=row, column=7).value,     # G 列：运输方式
         'order_date': ws.cell(row=row, column=3).value,    # C 列：订货日期
     }
@@ -132,6 +134,7 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
         return False
     
     ws_order = wb_order[supplier]
+    order_layout = get_order_sheet_layout(ws_order)
     
     # Find all contracts with empty customer cells
     all_contracts = find_contracts_with_empty_cells(ws_order, supplier)
@@ -158,7 +161,7 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
     # Find the specific contract
     contract_data = None
     for c_no, start, end, empty_count, transport in all_contracts:
-        if c_no == contract_no:
+        if str(c_no) == str(contract_no):
             contract_data = (c_no, start, end, empty_count, transport)
             break
     
@@ -173,7 +176,7 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
     c_no, start_row, end_row, empty_count, transport = contract_data
     empty_rows = []
     for row in range(start_row, end_row + 1):
-        customer = ws_order.cell(row=row, column=16).value
+        customer = ws_order.cell(row=row, column=order_layout['customer']).value
         if customer is None or customer == '':
             empty_rows.append(row)
     
@@ -255,33 +258,32 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
     
     # Fill in the order file and collect order info for sales file
     current_empty_idx = 0
-    order_info_list = []  # Store order info for each customer
+    order_info_list = []  # Store per-customer order info, preserving per-truck source rows
     
     for cust in parsed_customers:
-        # Read order info from the first row for this customer
-        first_row = empty_rows[current_empty_idx]
-        order_info = read_order_info(ws_order, first_row)
-        order_info['customer'] = cust['customer']
-        order_info['sell_price'] = cust['price']
-        order_info['delivery'] = cust['delivery']
-        order_info['trucks'] = cust['trucks']
-        order_info['contract_no'] = c_no
-        order_info['benchmark'] = cust['benchmark']
-        order_info['price_diff'] = cust['price_diff']
-        order_info_list.append(order_info)
-        
+        customer_rows = []
         for _ in range(cust['trucks']):
             target_row = empty_rows[current_empty_idx]
+            row_order_info = read_order_info(ws_order, target_row)
+            customer_rows.append(row_order_info)
             
-            # Column P (16): Customer
-            ws_order.cell(row=target_row, column=16, value=cust['customer'])
-            # Column Q (17): Sell Price
-            ws_order.cell(row=target_row, column=17, value=cust['price'])
-            # Column R (18): Delivery Type
-            ws_order.cell(row=target_row, column=18, value=cust['delivery'])
+            ws_order.cell(row=target_row, column=order_layout['customer'], value=cust['customer'])
+            ws_order.cell(row=target_row, column=order_layout['sell_price'], value=cust['price'])
+            ws_order.cell(row=target_row, column=order_layout['delivery_mode'], value=cust['delivery'])
             
             print(f'  ✅ Order Row {target_row}: {cust["customer"]}, {cust["price"]}, {cust["delivery"]}')
             current_empty_idx += 1
+
+        order_info_list.append({
+            'rows': customer_rows,
+            'customer': cust['customer'],
+            'sell_price': cust['price'],
+            'delivery': cust['delivery'],
+            'trucks': cust['trucks'],
+            'contract_no': c_no,
+            'benchmark': cust['benchmark'],
+            'price_diff': cust['price_diff'],
+        })
     
     # Save order file
     wb_order.save(ORDER_FILE)
@@ -310,8 +312,9 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
         sales_start_row = find_empty_row_in_sales(ws_sales)
         print(f'\nCustomer: {customer_name}')
         print(f'Sales start row: {sales_start_row}')
+        first_row_info = order_info['rows'][0]
         print(f'Trucks: {trucks}')
-        print(f'Order info: Brand={order_info["brand"]}, Spec={order_info["spec"]}, Price={order_info["sell_price"]}')
+        print(f'Order info: Brand={first_row_info["brand"]}, Price={order_info["sell_price"]}')
         print(f'Sales Date: {sales_date}')
         if order_info.get('benchmark'):
             print(f'Benchmark: {order_info["benchmark"]}')
@@ -321,13 +324,14 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
         # Generate sales contract info
         sales_contract = f'{int(order_info["sell_price"]) }元{trucks}车'
         
-        order_price = order_info.get('order_price', 0)
         sell_price = order_info['sell_price']
         
         # Fill sales information for each truck (one row per truck)
         for truck_idx in range(trucks):
             current_row = sales_start_row + truck_idx
             prev_row = current_row - 1
+            row_order_info = order_info['rows'][truck_idx]
+            order_price = row_order_info.get('order_price', 0)
             
             # A 列：销售合同（只在第一行填写）
             if truck_idx == 0:
@@ -337,9 +341,9 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
             # C 列：销售日期（每行都填）
             ws_sales.cell(row=current_row, column=3, value=sales_date)
             # D 列：品牌
-            ws_sales.cell(row=current_row, column=4, value=order_info['brand'])
+            ws_sales.cell(row=current_row, column=4, value=row_order_info['brand'])
             # E 列：规格
-            ws_sales.cell(row=current_row, column=5, value=order_info['spec'])
+            ws_sales.cell(row=current_row, column=5, value=row_order_info['spec'])
             # F 列：对标
             if order_info.get('benchmark'):
                 ws_sales.cell(row=current_row, column=6, value=order_info['benchmark'])
@@ -351,8 +355,8 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
             ws_sales.cell(row=current_row, column=12, value=supplier)
             # M 列：提货价
             ws_sales.cell(row=current_row, column=13, value=order_price)
-            # N 列：运输方式（与供应商台账 G 列一致）
-            ws_sales.cell(row=current_row, column=14, value=order_info['transport'])
+            # N 列：自提/送到，沿用供应商合同的运输方式
+            ws_sales.cell(row=current_row, column=14, value=row_order_info['transport'])
             # S 列：单价
             ws_sales.cell(row=current_row, column=19, value=sell_price)
             # T 列：销售金额（公式，每行都有）
@@ -377,7 +381,7 @@ def enter_sales(supplier, contract_no, customers, prices, deliveries, trucks_lis
             print(f'  ✅ Sales Row {current_row}:')
             if truck_idx == 0:
                 print(f'     Contract: {sales_contract}')
-            print(f'     Brand: {order_info["brand"]}, Spec: {order_info["spec"]}')
+            print(f'     Brand: {row_order_info["brand"]}, Spec: {row_order_info["spec"]}')
             print(f'     Order Price: {order_price}, Sell Price: {sell_price}')
             print(f'     Supplier: {supplier}, Delivery: {order_info["delivery"]}')
     

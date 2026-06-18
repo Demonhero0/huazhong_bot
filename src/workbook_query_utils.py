@@ -18,6 +18,11 @@ def is_blank(value):
     return value is None or value == ''
 
 
+def is_pending_receipt_cell(receipt_date, received_amount):
+    # Some historical rows use 0 as a placeholder in V while no receipt has been recorded yet.
+    return is_blank(receipt_date) and (is_blank(received_amount) or received_amount == 0)
+
+
 def to_decimal(value, default='0'):
     if value is None or value == '':
         return Decimal(default)
@@ -32,6 +37,39 @@ def parse_date_text(value):
         return None
     text = str(value).strip()
     return datetime.strptime(text, '%Y.%m.%d')
+
+
+def get_order_sheet_layout(ws):
+    headers = {}
+    for col in range(1, ws.max_column + 1):
+        value = ws.cell(row=4, column=col).value
+        if is_blank(value):
+            continue
+        headers[str(value).strip()] = col
+
+    layout = {
+        'pickup_date': headers.get('提货日期', 8),
+        'customer': headers.get('客户', 16),
+        'truck_no': headers.get('车号', 9),
+        'factory_weight': headers.get('出厂吨数', 10),
+        'unit_price': headers.get('单价', 11),
+        'pickup_amount': headers.get('提货金额', 12),
+        'payment_date': headers.get('付款日期', 13),
+        'payment_amount': headers.get('付款金额', 14),
+        'balance': headers.get('余款', 15),
+        # Supplier-side customer allocation fields are appended to the right in this workbook.
+        'sell_price': 17,
+        'delivery_mode': 18,
+    }
+    return layout
+
+
+def extract_contract_price_from_title(value):
+    text = str(value or '').strip().replace(' ', '')
+    match = re.search(r'([0-9]+(?:\.[0-9]+)?)元', text)
+    if not match:
+        return None
+    return float(match.group(1))
 
 
 def load_order_workbook():
@@ -114,6 +152,81 @@ def get_contract_rows(ws, contract_no):
     return list(iter_contract_rows(ws, contract_no))
 
 
+def resolve_order_contract_unit_price(ws, contract_no):
+    layout = get_order_sheet_layout(ws)
+    rows = get_contract_rows(ws, contract_no)
+    if not rows:
+        return None
+
+    for row in rows:
+        value = ws.cell(row=row, column=layout['unit_price']).value
+        if not is_blank(value):
+            return value
+
+    for row in rows:
+        parsed = extract_contract_price_from_title(ws.cell(row=row, column=1).value)
+        if parsed is not None:
+            return parsed
+
+    return None
+
+
+def resolve_sales_contract_sell_price(ws, contract_no):
+    rows = get_contract_rows(ws, contract_no)
+    if not rows:
+        return None
+
+    for row in rows:
+        value = ws.cell(row=row, column=19).value
+        if not is_blank(value):
+            return value
+
+    for row in rows:
+        parsed = extract_contract_price_from_title(ws.cell(row=row, column=1).value)
+        if parsed is not None:
+            return parsed
+
+    return None
+
+
+def resolve_order_row_unit_price(ws, row):
+    layout = get_order_sheet_layout(ws)
+    contract_no = ws.cell(row=row, column=2).value
+    if is_blank(contract_no):
+        return None
+
+    current = row
+    fallback_unit_price = None
+    while current >= 5 and str(ws.cell(row=current, column=2).value) == str(contract_no):
+        parsed = extract_contract_price_from_title(ws.cell(row=current, column=1).value)
+        if parsed is not None:
+            return parsed
+        unit_price = ws.cell(row=current, column=layout['unit_price']).value
+        if fallback_unit_price is None and not is_blank(unit_price):
+            fallback_unit_price = unit_price
+        current -= 1
+
+    return fallback_unit_price
+
+
+def resolve_sales_row_sell_price(ws, row):
+    contract_no = ws.cell(row=row, column=2).value
+    if is_blank(contract_no):
+        return None
+
+    current = row
+    while current >= 5 and str(ws.cell(row=current, column=2).value) == str(contract_no):
+        sell_price = ws.cell(row=current, column=19).value
+        if not is_blank(sell_price):
+            return sell_price
+        parsed = extract_contract_price_from_title(ws.cell(row=current, column=1).value)
+        if parsed is not None:
+            return parsed
+        current -= 1
+
+    return None
+
+
 def get_contract_balance_snapshot(ws_values, contract_no):
     rows = get_contract_rows(ws_values, contract_no)
     if not rows:
@@ -147,7 +260,7 @@ def get_contract_receivable_snapshot(ws_formulas, ws_values, contract_no):
         total_received_amount += to_decimal(ws_formulas.cell(row=row, column=22).value)
 
     last_row = rows[-1]
-    outstanding_amount = (total_received_amount - total_sales_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    outstanding_amount = (total_sales_amount - total_received_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     return {
         'row': last_row,
         'rows': rows,
@@ -158,6 +271,7 @@ def get_contract_receivable_snapshot(ws_formulas, ws_values, contract_no):
 
 
 def summarize_order_contracts(ws):
+    layout = get_order_sheet_layout(ws)
     contracts = {}
     for row in range(5, ws.max_row + 1):
         contract_no = ws.cell(row=row, column=2).value
@@ -172,7 +286,7 @@ def summarize_order_contracts(ws):
             'transport': ws.cell(row=row, column=7).value,
             'brand': ws.cell(row=row, column=4).value,
             'spec': ws.cell(row=row, column=6).value,
-            'unit_price': ws.cell(row=row, column=11).value,
+            'unit_price': ws.cell(row=row, column=layout['unit_price']).value,
             'order_date': ws.cell(row=row, column=3).value,
             'pending_pickup_rows': [],
             'completed_pickup_rows': [],
@@ -182,10 +296,10 @@ def summarize_order_contracts(ws):
         contract['end_row'] = row
         contract['total_rows'] += 1
 
-        pickup_date = ws.cell(row=row, column=8).value
-        truck_no = ws.cell(row=row, column=9).value
-        factory_weight = ws.cell(row=row, column=10).value
-        customer = ws.cell(row=row, column=16).value
+        pickup_date = ws.cell(row=row, column=layout['pickup_date']).value
+        truck_no = ws.cell(row=row, column=layout['truck_no']).value
+        factory_weight = ws.cell(row=row, column=layout['factory_weight']).value
+        customer = ws.cell(row=row, column=layout['customer']).value
 
         if is_blank(pickup_date) and is_blank(truck_no) and is_blank(factory_weight):
             contract['pending_pickup_rows'].append(row)
@@ -275,11 +389,12 @@ def summarize_sales_contracts(ws):
 
 
 def find_pending_order_rows(ws, contract_no):
+    layout = get_order_sheet_layout(ws)
     rows = []
     for row in iter_contract_rows(ws, contract_no):
-        pickup_date = ws.cell(row=row, column=8).value
-        truck_no = ws.cell(row=row, column=9).value
-        factory_weight = ws.cell(row=row, column=10).value
+        pickup_date = ws.cell(row=row, column=layout['pickup_date']).value
+        truck_no = ws.cell(row=row, column=layout['truck_no']).value
+        factory_weight = ws.cell(row=row, column=layout['factory_weight']).value
         if not (is_blank(pickup_date) and is_blank(truck_no) and is_blank(factory_weight)):
             continue
         rows.append({
@@ -287,9 +402,9 @@ def find_pending_order_rows(ws, contract_no):
             'brand': ws.cell(row=row, column=4).value,
             'spec': ws.cell(row=row, column=6).value,
             'transport': ws.cell(row=row, column=7).value,
-            'customer': ws.cell(row=row, column=16).value,
-            'sell_price': ws.cell(row=row, column=17).value,
-            'delivery_mode': ws.cell(row=row, column=18).value,
+            'customer': ws.cell(row=row, column=layout['customer']).value,
+            'sell_price': ws.cell(row=row, column=layout['sell_price']).value,
+            'delivery_mode': ws.cell(row=row, column=layout['delivery_mode']).value,
             'dock': ws.cell(row=row, column=5).value,
             'pickup_date': pickup_date,
             'truck_no': truck_no,
@@ -358,7 +473,7 @@ def summarize_receivable_contracts(ws_formulas, ws_values, date_from=None, date_
 
         receipt_date = ws_formulas.cell(row=row, column=21).value
         received_amount = ws_formulas.cell(row=row, column=22).value
-        if is_blank(receipt_date) and is_blank(received_amount):
+        if is_pending_receipt_cell(receipt_date, received_amount):
             contract['receipt_pending_rows'].append(row)
         else:
             contract['receipt_filled_rows'].append(row)
@@ -399,7 +514,7 @@ def find_first_receipt_pending_row(ws, contract_no):
     for row in iter_contract_rows(ws, contract_no):
         receipt_date = ws.cell(row=row, column=21).value
         received_amount = ws.cell(row=row, column=22).value
-        if is_blank(receipt_date) and is_blank(received_amount):
+        if is_pending_receipt_cell(receipt_date, received_amount):
             return row
     return None
 

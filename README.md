@@ -3,6 +3,7 @@
 用于维护线材业务台账的本地脚本仓库，覆盖以下流程：
 
 - 订货
+- 供应商付款补录
 - 销货
 - 送货
 - 收款
@@ -18,6 +19,7 @@
 ## 目录说明
 
 - [`src/order_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/order_entry.py)：订货
+- [`src/supplier_payment_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/supplier_payment_entry.py)：供应商付款补录
 - [`src/sales_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/sales_entry.py)：销货
 - [`src/delivery_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/delivery_entry.py)：送货
 - [`src/receipt_entry.py`](/Users/jianzhongsu/Desktop/openclaw_huazhong/src/receipt_entry.py)：收款
@@ -93,6 +95,31 @@ pip install -r requirements.txt
 
 - 付款日期默认跟订货日期一致
 - 如果只传付款日期、不传付款金额，脚本不会写付款信息
+
+### 1.1 供应商付款补录
+
+作用：
+- 在供应商台账末尾追加一条独立付款记录
+- 只写 `M:付款日期`、`N:付款金额`、`O:余款公式`
+
+基础命令：
+
+```bash
+./.venv/bin/python src/supplier_payment_entry.py -s "厦门集金" -a 397.9
+```
+
+指定付款日期：
+
+```bash
+./.venv/bin/python src/supplier_payment_entry.py -s "厦门集金" -a 397.9 --payment-date "2026.03.27"
+```
+
+规则：
+
+- `付款日期` 默认今天
+- `付款金额` 必须大于 0
+- 脚本会把付款写到该供应商 sheet 当前最后一条数据之后的新行
+- 新行 `余款` 会自动承接上一行余额公式
 
 ### 2. 销货
 

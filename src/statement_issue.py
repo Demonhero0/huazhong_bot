@@ -377,7 +377,7 @@ def render_excel(statement: dict[str, Any], output_path: Path) -> None:
     for row in statement['rows']:
         amount = Decimal(str(row['amount']))
         received_amount = Decimal(str(row['received_amount'] or 0))
-        running_outstanding = (running_outstanding + received_amount - amount).quantize(
+        running_outstanding = (running_outstanding + amount - received_amount).quantize(
             Decimal('0.01'),
             rounding=ROUND_HALF_UP,
         )

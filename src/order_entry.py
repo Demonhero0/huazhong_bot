@@ -19,10 +19,10 @@ from datetime import datetime
 import sys
 import argparse
 
-from workbook_query_utils import ORDER_FILE
+from workbook_query_utils import ORDER_FILE, get_order_sheet_layout
 
 
-def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method, order_date=None, customers=None, payment_date=None, payment_amount=None):
+def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method, order_date=None, customers=None, payment_date=None, payment_amount=None, contract_no=None):
     """
     Enter supplier order information to Excel file
     
@@ -52,12 +52,12 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
         return False
     
     ws = wb[supplier]
+    layout = get_order_sheet_layout(ws)
     
-    # Generate contract number (today + 01)
-    today = datetime.now().strftime('%Y%m%d')
-    contract_no = today + '01'
     if not order_date:
         order_date = datetime.now().strftime('%Y.%m.%d')
+    if not contract_no:
+        contract_no = datetime.now().strftime('%Y%m%d') + '01'
     
     # Find last row with any data (check all columns)
     last_row = 1
@@ -98,14 +98,17 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
         
         # Column L: 提货金额 (Formula: J 列出厂吨数 × K 列单价)
         # 由于吨数需要后续补充，先填写单价到 K 列
-        ws.cell(row=row, column=11, value=unit_price)  # Column K: 单价
-        # L 列公式等待吨数填写后生效：=J 列×K 列
-        ws.cell(row=row, column=12, value=f'=J{row}*K{row}')  # Column L: 提货金额
+        ws.cell(row=row, column=layout['unit_price'], value=unit_price)
+        ws.cell(
+            row=row,
+            column=layout['pickup_amount'],
+            value=f'={chr(64 + layout["factory_weight"])}{row}*{chr(64 + layout["unit_price"])}{row}',
+        )
         
         # Customer info (if available)
         # P 列 (16): 客户
         if i < len(customers) and customers[i]:
-            ws.cell(row=row, column=16, value=customers[i])  # Column P: Customer
+            ws.cell(row=row, column=layout['customer'], value=customers[i])
         
         print(f'  Truck {i+1} (Row {row}): {brand} {spec} {transport_method}', end='')
         if i < len(customers) and customers[i]:
@@ -117,8 +120,8 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
     # Enter payment information (in first contract row)
     # M 列 (13): 付款日期，N 列 (14): 付款金额
     if payment_amount is not None:
-        ws.cell(row=start_row, column=13, value=effective_payment_date)  # Column M: Payment Date
-        ws.cell(row=start_row, column=14, value=payment_amount)  # Column N: Payment Amount
+        ws.cell(row=start_row, column=layout['payment_date'], value=effective_payment_date)
+        ws.cell(row=start_row, column=layout['payment_amount'], value=payment_amount)
         print(f'  Payment: {effective_payment_date} {payment_amount} yuan (Row {start_row})')
     elif payment_date:
         print('  Warning: payment date provided without payment amount, skipping payment entry')
@@ -126,7 +129,7 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
     # Fill Column O (Balance) formula
     # O 列 (15): 余款
     prev_row = start_row - 1
-    prev_o_value = ws.cell(row=prev_row, column=15).value  # Column O is column 15
+    prev_o_value = ws.cell(row=prev_row, column=layout['balance']).value
     
     if prev_o_value:
         for i in range(num_trucks):
@@ -137,7 +140,8 @@ def enter_order(supplier, unit_price, num_trucks, brand, spec, transport_method,
                 formula = f'=O{prev_row}+L{row}-N{row}'
             else:
                 formula = f'=O{row-1}+L{row}-N{row}'
-            ws.cell(row=row, column=15, value=formula)  # Column O: Balance
+            formula = formula.replace('L', chr(64 + layout['pickup_amount'])).replace('N', chr(64 + layout['payment_amount'])).replace('O', chr(64 + layout['balance']))
+            ws.cell(row=row, column=layout['balance'], value=formula)
 
         print(f'  Balance formula filled to rows {start_row}-{start_row+num_trucks-1}')
     else:
@@ -180,6 +184,7 @@ Examples:
     parser.add_argument('-e', '--spec', required=True, help='Specification (e.g., "6.5 厘")')
     parser.add_argument('-t', '--transport', required=True, help='Transport method (e.g., "自提")')
     parser.add_argument('--order-date', help='Order date (e.g., "2026.03.20"). Defaults to today if omitted.')
+    parser.add_argument('--contract-no', help='Explicit contract number to write (e.g., "2026032401"). Defaults to today + 01 if omitted.')
     
     # Optional arguments
     parser.add_argument('-c', '--customer', action='append', default=[], help='Customer info (can be used multiple times)')
@@ -204,5 +209,6 @@ Examples:
         order_date=args.order_date,
         customers=customers,
         payment_date=args.date,
-        payment_amount=args.amount
+        payment_amount=args.amount,
+        contract_no=args.contract_no
     )

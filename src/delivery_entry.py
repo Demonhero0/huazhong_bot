@@ -5,7 +5,7 @@ Steel Wire Delivery Entry Script
 Fill delivery execution details into both the supplier workbook and the customer workbook.
 
 Usage:
-  python3 delivery_entry.py -s <supplier> -o <order_contract> -c <customer> -n <sales_contract> --pickup-date <pickup_date> --truck-no <truck_no> --factory-weight <factory_weight> --received-weight <received_weight> --fleet <fleet> --freight <freight> --freight-tax <freight_tax> [--dock <dock>] [--delivery-date <delivery_date>]
+  python3 delivery_entry.py -s <supplier> -o <order_contract> -c <customer> -n <sales_contract> --pickup-date <pickup_date> --truck-no <truck_no> --factory-weight <factory_weight> --received-weight <received_weight> [--fleet <fleet>] [--freight <freight>] [--freight-tax <freight_tax>] [--dock <dock>] [--delivery-date <delivery_date>]
 
 Examples:
   python3 delivery_entry.py -s "浙江凯航" -o 2026032401 -c "东莞建安" -n 2026032401 --pickup-date 2026.03.24 --truck-no 8888 --factory-weight 31.25 --received-weight 31.20 --fleet "英杰运输" --freight "35元/吨" --freight-tax 含税
@@ -16,7 +16,16 @@ import argparse
 import os
 import re
 
-from workbook_query_utils import ORDER_FILE, SALES_FILE, load_order_workbook, load_sales_workbook, resolve_sales_sheet_name
+from workbook_query_utils import (
+    ORDER_FILE,
+    SALES_FILE,
+    get_order_sheet_layout,
+    load_order_workbook,
+    load_sales_workbook,
+    resolve_order_row_unit_price,
+    resolve_sales_row_sell_price,
+    resolve_sales_sheet_name,
+)
 
 
 def is_blank(value):
@@ -44,18 +53,24 @@ def parse_freight_input(freight_text, received_weight):
     raise ValueError('Freight must be in the form "X元/吨" or "X元".')
 
 
+def is_direct_delivery_text(value):
+    text = str(value or '').strip()
+    return '直送' in text
+
+
 def find_pending_order_row(ws, contract_no):
     """
     Find the first supplier workbook row for this order contract where pickup execution
     details have not been filled yet.
     """
+    layout = get_order_sheet_layout(ws)
     for row in range(5, ws.max_row + 1):
         if str(ws.cell(row=row, column=2).value) != str(contract_no):
             continue
 
-        pickup_date = ws.cell(row=row, column=8).value   # H 提货日期
-        truck_no = ws.cell(row=row, column=9).value      # I 车号
-        factory_weight = ws.cell(row=row, column=10).value  # J 出厂吨数
+        pickup_date = ws.cell(row=row, column=layout['pickup_date']).value
+        truck_no = ws.cell(row=row, column=layout['truck_no']).value
+        factory_weight = ws.cell(row=row, column=layout['factory_weight']).value
 
         if is_blank(pickup_date) and is_blank(truck_no) and is_blank(factory_weight):
             return row
@@ -101,15 +116,6 @@ def enter_delivery(
     """
     if not delivery_date:
         delivery_date = pickup_date
-    if freight_tax not in ['含税', '不含税']:
-        print('\n❌ Error: Freight tax flag must be "含税" or "不含税"!')
-        return False
-
-    try:
-        actual_freight, freight_mode = parse_freight_input(freight, received_weight)
-    except ValueError as exc:
-        print(f'\n❌ Error: {exc}')
-        return False
 
     if not os.path.exists(ORDER_FILE):
         print(f'\n❌ Error: Order file not found: {ORDER_FILE}')
@@ -136,6 +142,7 @@ def enter_delivery(
 
     ws_order = wb_order[supplier]
     ws_sales = wb_sales[resolved_customer]
+    order_layout = get_order_sheet_layout(ws_order)
 
     order_row = find_pending_order_row(ws_order, order_contract)
     if order_row is None:
@@ -147,6 +154,36 @@ def enter_delivery(
     if sales_row is None:
         print(f'\n❌ Error: No pending sales row found for customer "{customer}" contract "{sales_contract}"!')
         print('The contract may not exist, or all rows under it may already have delivery details.')
+        return False
+
+    is_direct_delivery = (
+        is_direct_delivery_text(ws_order.cell(row=order_row, column=7).value)
+        or is_direct_delivery_text(ws_sales.cell(row=sales_row, column=14).value)
+    )
+
+    if freight in (None, ''):
+        if not is_direct_delivery:
+            print('\n❌ Error: Freight is required for non-direct-delivery rows!')
+            return False
+        actual_freight = None
+        freight_mode = 'blank'
+    else:
+        try:
+            actual_freight, freight_mode = parse_freight_input(freight, received_weight)
+        except ValueError as exc:
+            print(f'\n❌ Error: {exc}')
+            return False
+
+    if freight_tax in (None, ''):
+        if not is_direct_delivery and freight is not None:
+            print('\n❌ Error: Freight tax flag must be "含税" or "不含税" for non-direct-delivery rows!')
+            return False
+    elif freight_tax not in ['含税', '不含税']:
+        print('\n❌ Error: Freight tax flag must be "含税" or "不含税"!')
+        return False
+
+    if fleet in (None, '') and not is_direct_delivery:
+        print('\n❌ Error: Fleet is required for non-direct-delivery rows!')
         return False
 
     print('\n=== Delivery Entry ===')
@@ -161,6 +198,7 @@ def enter_delivery(
     print(f'Truck No: {truck_no}')
     print(f'Factory Weight: {factory_weight}')
     print(f'Received Weight: {received_weight}')
+    print(f'Direct Delivery: {"yes" if is_direct_delivery else "no"}')
     print(f'Fleet: {fleet}')
     print(f'Freight Input: {freight}')
     print(f'Freight Mode: {freight_mode}')
@@ -172,9 +210,19 @@ def enter_delivery(
     # Supplier workbook: E 提货码头, H 提货日期, I 车号, J 出厂吨数
     if dock is not None:
         ws_order.cell(row=order_row, column=5, value=dock)
-    ws_order.cell(row=order_row, column=8, value=pickup_date)
-    ws_order.cell(row=order_row, column=9, value=truck_no)
-    ws_order.cell(row=order_row, column=10, value=factory_weight)
+    ws_order.cell(row=order_row, column=order_layout['pickup_date'], value=pickup_date)
+    ws_order.cell(row=order_row, column=order_layout['truck_no'], value=truck_no)
+    ws_order.cell(row=order_row, column=order_layout['factory_weight'], value=factory_weight)
+    order_unit_price = resolve_order_row_unit_price(ws_order, order_row)
+    if order_unit_price is not None:
+        ws_order.cell(row=order_row, column=order_layout['unit_price'], value=order_unit_price)
+    factory_letter = chr(64 + order_layout['factory_weight'])
+    unit_letter = chr(64 + order_layout['unit_price'])
+    ws_order.cell(
+        row=order_row,
+        column=order_layout['pickup_amount'],
+        value=f'={factory_letter}{order_row}*{unit_letter}{order_row}',
+    )
 
     # Customer workbook: H 送货日期, I 车队, J 运费, K 运费是否含税, P 车号, Q 出厂吨数, R 实收吨数
     ws_sales.cell(row=sales_row, column=8, value=delivery_date)
@@ -184,6 +232,12 @@ def enter_delivery(
     ws_sales.cell(row=sales_row, column=16, value=truck_no)
     ws_sales.cell(row=sales_row, column=17, value=factory_weight)
     ws_sales.cell(row=sales_row, column=18, value=received_weight)
+    if order_unit_price is not None:
+        ws_sales.cell(row=sales_row, column=13, value=order_unit_price)
+    sell_price = resolve_sales_row_sell_price(ws_sales, sales_row)
+    if sell_price is not None:
+        ws_sales.cell(row=sales_row, column=19, value=sell_price)
+    ws_sales.cell(row=sales_row, column=20, value=f'=R{sales_row}*S{sales_row}')
 
     wb_order.save(ORDER_FILE)
     wb_sales.save(SALES_FILE)
@@ -214,9 +268,9 @@ Examples:
     parser.add_argument('--truck-no', required=True, help='Truck number / plate number.')
     parser.add_argument('--factory-weight', type=float, required=True, help='Factory weight / 出厂吨数.')
     parser.add_argument('--received-weight', type=float, required=True, help='Received weight / 实收吨数.')
-    parser.add_argument('--fleet', required=True, help='Fleet / 车队 (e.g., "英杰运输").')
-    parser.add_argument('--freight', required=True, help='Freight input, either "X元/吨" or "X元".')
-    parser.add_argument('--freight-tax', required=True, help='Freight tax flag: 含税 or 不含税.')
+    parser.add_argument('--fleet', help='Fleet / 车队 (e.g., "英杰运输"). Optional for direct-delivery rows.')
+    parser.add_argument('--freight', help='Freight input, either "X元/吨" or "X元". Optional for direct-delivery rows.')
+    parser.add_argument('--freight-tax', help='Freight tax flag: 含税 or 不含税. Optional for direct-delivery rows.')
     parser.add_argument('--dock', help='Pickup dock / 提货码头. Optional.')
 
     args = parser.parse_args()
